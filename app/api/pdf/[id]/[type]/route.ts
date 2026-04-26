@@ -38,7 +38,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unknown PDF type' }, { status: 400 });
   }
 
-  return new NextResponse(pdfBytes, {
+  return new NextResponse(Buffer.from(pdfBytes), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
