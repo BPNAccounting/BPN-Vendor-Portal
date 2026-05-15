@@ -3,7 +3,7 @@
 import { ShieldCheck } from 'lucide-react';
 import { FormField, Input, Select } from './FormField';
 import MaskedInput from './MaskedInput';
-import { US_STATES } from '@/lib/constants';
+import { US_STATES, CA_PROVINCES } from '@/lib/constants';
 import type { FormData } from '@/lib/validation';
 
 type Props = {
@@ -12,7 +12,17 @@ type Props = {
   errors: Partial<Record<keyof FormData, string>>;
 };
 
+function formatPostal(value: string, country: 'US' | 'CA'): string {
+  if (country !== 'CA') return value;
+  const clean = value.replace(/\s/g, '').toUpperCase();
+  if (clean.length > 3) return `${clean.slice(0, 3)} ${clean.slice(3, 6)}`;
+  return clean;
+}
+
 export default function StepThree({ data, onChange, errors }: Props) {
+  const isCA = data.country === 'CA';
+  const regions = isCA ? CA_PROVINCES : US_STATES;
+
   return (
     <div className="space-y-6">
       {/* Authorization terms */}
@@ -20,13 +30,13 @@ export default function StepThree({ data, onChange, errors }: Props) {
         <div className="flex items-start gap-3">
           <ShieldCheck className="h-5 w-5 text-bpn-500 mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-bpn-800 mb-2">ACH Payment Authorization Terms</p>
+            <p className="text-sm font-semibold text-bpn-800 mb-2">ACH / EFT Payment Authorization Terms</p>
             <ul className="space-y-1.5 text-sm text-bpn-700">
               <li>• I authorize Bare Performance Nutrition to deposit payments to my financial institution electronically.</li>
               <li>• I understand that BPN will reverse any payments made to my account in error.</li>
               <li>• The company/individual will give 30 days advanced written notice of any changes in the depository financial institution.</li>
               <li>• I understand BPN will charge a fee for any/all returned items due to failure to notify BPN of updated information.</li>
-              <li>• ACH payments are processed once a week. Payment will be scheduled after the required information has been received and internal approvals have been obtained.</li>
+              <li>• Payments are processed once a week. Payment will be scheduled after the required information has been received and internal approvals have been obtained.</li>
             </ul>
           </div>
         </div>
@@ -52,7 +62,7 @@ export default function StepThree({ data, onChange, errors }: Props) {
         </FormField>
       </div>
 
-      {/* Bank address — always shown, always required */}
+      {/* Bank address */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-700">Bank Address</h3>
         <FormField label="Street Address" required error={errors.bank_address_street}>
@@ -72,63 +82,125 @@ export default function StepThree({ data, onChange, errors }: Props) {
               error={errors.bank_address_city}
             />
           </FormField>
-          <FormField label="State" required error={errors.bank_address_state}>
+          <FormField label={isCA ? 'Province' : 'State'} required error={errors.bank_address_state}>
             <Select
               value={data.bank_address_state}
               onChange={e => onChange('bank_address_state', e.target.value)}
               error={errors.bank_address_state}
             >
               <option value="">Select…</option>
-              {US_STATES.map(s => (
+              {regions.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </Select>
           </FormField>
-          <FormField label="ZIP Code" required error={errors.bank_address_zip}>
+          <FormField
+            label={isCA ? 'Postal Code' : 'ZIP Code'}
+            required
+            error={errors.bank_address_zip}
+            hint={isCA ? 'A1A 1A1' : undefined}
+          >
             <Input
               value={data.bank_address_zip}
-              onChange={e => onChange('bank_address_zip', e.target.value)}
-              placeholder="00000"
-              maxLength={10}
-              inputMode="numeric"
+              onChange={e => onChange('bank_address_zip', formatPostal(e.target.value, data.country))}
+              placeholder={isCA ? 'A1A 1A1' : '00000'}
+              maxLength={isCA ? 7 : 10}
+              inputMode={isCA ? 'text' : 'numeric'}
               error={errors.bank_address_zip}
             />
           </FormField>
         </div>
       </div>
 
-      {/* Account details */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <FormField
-          label="Bank Account Number"
-          required
-          error={errors.bank_account_number}
-          hint="Click the eye icon to reveal / hide"
-        >
-          <MaskedInput
-            value={data.bank_account_number}
-            onChange={v => onChange('bank_account_number', v.replace(/\D/g, ''))}
-            placeholder="Account number"
+      {/* Account + routing/transit details */}
+      {isCA ? (
+        /* ── Canadian banking ── */
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+            <strong>Canadian EFT format:</strong> Transit number (5 digits) + Institution number (3 digits) + Account number. These are printed on a void cheque.
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField
+              label="Transit Number"
+              required
+              error={errors.ca_transit_number}
+              hint="5 digits — branch identifier"
+            >
+              <Input
+                value={data.ca_transit_number}
+                onChange={e => onChange('ca_transit_number', e.target.value.replace(/\D/g, '').slice(0, 5))}
+                placeholder="00000"
+                maxLength={5}
+                inputMode="numeric"
+                error={errors.ca_transit_number}
+              />
+            </FormField>
+            <FormField
+              label="Institution Number"
+              required
+              error={errors.ca_institution_number}
+              hint="3 digits — bank identifier"
+            >
+              <Input
+                value={data.ca_institution_number}
+                onChange={e => onChange('ca_institution_number', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                placeholder="000"
+                maxLength={3}
+                inputMode="numeric"
+                error={errors.ca_institution_number}
+              />
+            </FormField>
+            <FormField
+              label="Account Number"
+              required
+              error={errors.bank_account_number}
+              hint="Click eye to reveal / hide"
+            >
+              <MaskedInput
+                value={data.bank_account_number}
+                onChange={v => onChange('bank_account_number', v.replace(/\D/g, ''))}
+                placeholder="Account number"
+                error={errors.bank_account_number}
+                maxLength={12}
+                inputMode="numeric"
+              />
+            </FormField>
+          </div>
+        </div>
+      ) : (
+        /* ── US banking ── */
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            label="Bank Account Number"
+            required
             error={errors.bank_account_number}
-            maxLength={17}
-            inputMode="numeric"
-          />
-        </FormField>
-        <FormField
-          label="Bank ABA Routing Number (9 digits) or SWIFT"
-          required
-          error={errors.bank_routing_number}
-        >
-          <Input
-            value={data.bank_routing_number}
-            onChange={e => onChange('bank_routing_number', e.target.value.replace(/\D/g, ''))}
-            placeholder="000000000"
-            maxLength={11}
-            inputMode="numeric"
+            hint="Click the eye icon to reveal / hide"
+          >
+            <MaskedInput
+              value={data.bank_account_number}
+              onChange={v => onChange('bank_account_number', v.replace(/\D/g, ''))}
+              placeholder="Account number"
+              error={errors.bank_account_number}
+              maxLength={17}
+              inputMode="numeric"
+            />
+          </FormField>
+          <FormField
+            label="Bank ABA Routing Number (9 digits)"
+            required
             error={errors.bank_routing_number}
-          />
-        </FormField>
-      </div>
+          >
+            <Input
+              value={data.bank_routing_number}
+              onChange={e => onChange('bank_routing_number', e.target.value.replace(/\D/g, ''))}
+              placeholder="000000000"
+              maxLength={9}
+              inputMode="numeric"
+              error={errors.bank_routing_number}
+            />
+          </FormField>
+        </div>
+      )}
 
       <FormField label="Email Address for Payment Notifications" required error={errors.payment_notification_email}>
         <Input

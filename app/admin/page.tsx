@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import BpnLogo from '@/components/BpnLogo';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center px-4">
       <div className="mb-8">
-        <img src="/bpn-logo.png" alt="BPN" className="h-12 w-auto" />
+        <BpnLogo variant="dark" className="h-12 w-auto" />
       </div>
 
       <div className="card w-full max-w-sm p-8">

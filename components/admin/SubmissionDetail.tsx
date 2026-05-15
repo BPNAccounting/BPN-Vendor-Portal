@@ -130,21 +130,23 @@ export default function SubmissionDetail({ row, tin, accountNumber }: Props) {
         {/* PDF Downloads */}
         <div className="flex flex-wrap gap-2">
           {[
-            { type: 'w9', label: 'W-9' },
-            { type: 'vendor-setup', label: 'Vendor Setup' },
-            { type: 'ach', label: 'ACH Auth' },
-            { type: 'all', label: 'All PDFs' },
-          ].map(({ type, label }) => (
-            <button
-              key={type}
-              onClick={() => downloadPdf(type)}
-              disabled={!!downloading}
-              className="btn-secondary text-xs flex items-center gap-1.5"
-            >
-              {downloading === type ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-              {label}
-            </button>
-          ))}
+            { type: 'w9', label: 'W-9', usOnly: true },
+            { type: 'vendor-setup', label: 'Vendor Setup', usOnly: false },
+            { type: 'ach', label: row.country === 'CA' ? 'EFT Auth' : 'ACH Auth', usOnly: false },
+            { type: 'all', label: 'All PDFs', usOnly: false },
+          ]
+            .filter(({ usOnly }) => !usOnly || row.country !== 'CA')
+            .map(({ type, label }) => (
+              <button
+                key={type}
+                onClick={() => downloadPdf(type)}
+                disabled={!!downloading}
+                className="btn-secondary text-xs flex items-center gap-1.5"
+              >
+                {downloading === type ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                {label}
+              </button>
+            ))}
         </div>
       </div>
 
@@ -152,13 +154,16 @@ export default function SubmissionDetail({ row, tin, accountNumber }: Props) {
         {/* Left: details */}
         <div className="lg:col-span-2 space-y-4">
           <Section title="Company & Tax Information">
+            <Field label="Country" value={row.country === 'CA' ? '🇨🇦 Canada' : '🇺🇸 United States'} />
             <Field label="Legal Name" value={row.company_name} />
             <Field label="DBA" value={row.dba} />
-            <Field label="Tax Classification" value={taxLabel(row.tax_classification) + (row.tax_classification === 'llc' ? ` (${row.tax_classification_llc})` : '') + (row.tax_classification === 'other' ? `: ${row.tax_classification_other}` : '')} />
-            <Field label="Exempt Payee Code" value={row.exempt_payee_code} />
-            <Field label="FATCA Code" value={row.exempt_fatca_code} />
+            {row.country !== 'CA' && (
+              <Field label="Tax Classification" value={taxLabel(row.tax_classification) + (row.tax_classification === 'llc' ? ` (${row.tax_classification_llc})` : '') + (row.tax_classification === 'other' ? `: ${row.tax_classification_other}` : '')} />
+            )}
+            {row.country !== 'CA' && <Field label="Exempt Payee Code" value={row.exempt_payee_code} />}
+            {row.country !== 'CA' && <Field label="FATCA Code" value={row.exempt_fatca_code} />}
             <Field label="Address" value={address} />
-            <RevealField label={`TIN (${row.tin_type})`} value={tin} />
+            <RevealField label={row.country === 'CA' ? 'Business Number (BN)' : `TIN (${row.tin_type})`} value={tin} />
           </Section>
 
           <Section title="Contacts & Remittance">
@@ -172,12 +177,19 @@ export default function SubmissionDetail({ row, tin, accountNumber }: Props) {
             <Field label="Special Notes" value={row.special_notes} />
           </Section>
 
-          <Section title="ACH Authorization">
+          <Section title={row.country === 'CA' ? 'EFT Authorization' : 'ACH Authorization'}>
             <Field label="Financial Institution" value={row.bank_name} />
             <Field label="Name on Account" value={row.bank_account_name} />
             <Field label="Bank Address" value={`${row.bank_address_street}, ${row.bank_address_city}, ${row.bank_address_state} ${row.bank_address_zip}`} />
             {accountNumber && <RevealField label="Account Number" value={accountNumber} />}
-            <Field label="Routing Number" value={row.bank_routing_number} />
+            {row.country === 'CA' ? (
+              <>
+                <Field label="Transit Number" value={row.ca_transit_number} />
+                <Field label="Institution Number" value={row.ca_institution_number} />
+              </>
+            ) : (
+              <Field label="ABA Routing Number" value={row.bank_routing_number} />
+            )}
             <Field label="Notification Email" value={row.payment_notification_email} />
           </Section>
 
@@ -186,8 +198,8 @@ export default function SubmissionDetail({ row, tin, accountNumber }: Props) {
             <Field label="Title" value={row.signature_title} />
             <Field label="Phone" value={row.signature_phone} />
             <Field label="Date Signed" value={row.signature_date} />
-            <Field label="W-9 Certified" value={row.w9_certified ? '✓ Yes' : '✗ No'} />
-            <Field label="ACH Authorized" value={row.ach_authorized ? '✓ Yes' : '✗ No'} />
+            {row.country !== 'CA' && <Field label="W-9 Certified" value={row.w9_certified ? '✓ Yes' : '✗ No'} />}
+            <Field label={row.country === 'CA' ? 'EFT Authorized' : 'ACH Authorized'} value={row.ach_authorized ? '✓ Yes' : '✗ No'} />
           </Section>
         </div>
 

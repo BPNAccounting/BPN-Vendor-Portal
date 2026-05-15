@@ -87,6 +87,7 @@ export default function SubmissionsTable({ rows, statusCounts, currentStatus, cu
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Company</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Country</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">TIN (last 4)</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Confirmation</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted</th>
@@ -100,6 +101,9 @@ export default function SubmissionsTable({ rows, statusCounts, currentStatus, cu
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{row.company_name}</p>
                       {row.dba && <p className="text-xs text-slate-500">DBA: {row.dba}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 text-sm">
+                      {row.country === 'CA' ? '🇨🇦 CA' : '🇺🇸 US'}
                     </td>
                     <td className="px-4 py-3 text-slate-600 font-mono text-xs">
                       {row.tin_type} ****{row.tin_last4}

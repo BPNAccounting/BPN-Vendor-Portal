@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function SubmissionPage({ params }: { params: { id: string } }) {
   if (!(await isAuthenticated())) redirect('/admin');
 
-  const row = await getSubmissionById(params.id);
+  const row = getSubmissionById(params.id);
   if (!row) notFound();
 
   const tin = decrypt(row.tin_encrypted);

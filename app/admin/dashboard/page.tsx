@@ -14,12 +14,12 @@ export default async function DashboardPage({
 }) {
   if (!(await isAuthenticated())) redirect('/admin');
 
-  const rows = await getAllSubmissions({
+  const rows = getAllSubmissions({
     status: searchParams.status && searchParams.status !== 'all' ? searchParams.status : undefined,
     q: searchParams.q,
   });
 
-  const statusCounts = await getStatusCounts();
+  const statusCounts = getStatusCounts();
   const totalCount = statusCounts.all ?? 0;
 
   return (

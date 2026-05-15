@@ -6,7 +6,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const row = await getSubmissionById(params.id);
+  const row = getSubmissionById(params.id);
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(row);
 }
@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  const ok = await updateSubmission(params.id, { status, internal_notes: internal_notes ?? null });
+  const ok = updateSubmission(params.id, { status, internal_notes: internal_notes ?? null });
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   return NextResponse.json({ ok: true });

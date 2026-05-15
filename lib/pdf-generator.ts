@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'pdf-lib';
 import type { SubmissionRow } from './db';
 import { decrypt } from './encryption';
-import { US_STATES, TAX_CLASSIFICATIONS } from './constants';
+import { US_STATES, CA_PROVINCES, TAX_CLASSIFICATIONS } from './constants';
 
 const BLACK = rgb(0, 0, 0);
 const DARK_GRAY = rgb(0.2, 0.2, 0.2);
@@ -9,7 +9,8 @@ const GRAY = rgb(0.5, 0.5, 0.5);
 const BPN_BLUE = rgb(1.0, 0.267, 0.220); // #FF4438 brand red
 const LIGHT_GRAY = rgb(0.95, 0.95, 0.95);
 
-function stateName(code: string): string {
+function stateName(code: string, country: 'US' | 'CA' = 'US'): string {
+  if (country === 'CA') return CA_PROVINCES.find(p => p.value === code)?.label ?? code;
   return US_STATES.find(s => s.value === code)?.label ?? code;
 }
 
@@ -239,23 +240,32 @@ export async function generateVendorSetupPdf(row: SubmissionRow): Promise<Uint8A
   const col2 = 36 + (width - 72) / 2 + 4;
   const fieldW = (width - 72) / 2 - 4;
 
+  const isCA = row.country === 'CA';
+
   drawField(ctx, 'Company / Legal Name (PAY-TO)', row.company_name, col1, y, width - 72);
   y -= 30;
   drawField(ctx, 'DBA (Doing Business As)', row.dba || '', col1, y, width - 72);
   y -= 30;
 
-  const taxLabel = taxClassLabel(row.tax_classification)
-    + (row.tax_classification === 'llc' ? ` (${row.tax_classification_llc})` : '')
-    + (row.tax_classification === 'other' ? `: ${row.tax_classification_other}` : '');
-  drawField(ctx, 'Federal Tax Classification', taxLabel, col1, y, fieldW);
-  drawField(ctx, 'TIN Type', row.tin_type, col2, y, fieldW / 2 - 2);
-  drawField(ctx, 'TIN (last 4)', `****${row.tin_last4}`, col2 + fieldW / 2 + 2, y, fieldW / 2 - 2);
-  y -= 30;
+  if (!isCA) {
+    const taxLabelStr = taxClassLabel(row.tax_classification)
+      + (row.tax_classification === 'llc' ? ` (${row.tax_classification_llc})` : '')
+      + (row.tax_classification === 'other' ? `: ${row.tax_classification_other}` : '');
+    drawField(ctx, 'Federal Tax Classification', taxLabelStr, col1, y, fieldW);
+    drawField(ctx, 'TIN Type', row.tin_type, col2, y, fieldW / 2 - 2);
+    drawField(ctx, 'TIN (last 4)', `****${row.tin_last4}`, col2 + fieldW / 2 + 2, y, fieldW / 2 - 2);
+    y -= 30;
+  } else {
+    drawField(ctx, 'Business Number (BN)', `****${row.tin_last4}`, col1, y, fieldW);
+    y -= 30;
+  }
 
+  const stateColLabel = isCA ? 'Province' : 'State';
+  const zipColLabel = isCA ? 'Postal Code' : 'ZIP';
   drawField(ctx, 'Street Address', row.address_street + (row.address_apt ? ` ${row.address_apt}` : ''), col1, y, fieldW);
   drawField(ctx, 'City', row.address_city, col2, y, fieldW * 0.5);
-  drawField(ctx, 'State', stateName(row.address_state), col2 + fieldW * 0.52, y, fieldW * 0.22);
-  drawField(ctx, 'ZIP', row.address_zip, col2 + fieldW * 0.76, y, fieldW * 0.24);
+  drawField(ctx, stateColLabel, stateName(row.address_state, row.country), col2 + fieldW * 0.52, y, fieldW * 0.22);
+  drawField(ctx, zipColLabel, row.address_zip, col2 + fieldW * 0.76, y, fieldW * 0.24);
   y -= 35;
 
   // SECTION 2
@@ -335,20 +345,24 @@ export async function generateAchPdf(row: SubmissionRow): Promise<Uint8Array> {
   const { width, height } = page.getSize();
   const ctx: DrawContext = { page, bold, regular, width, height };
 
-  let y = pageHeader(ctx, 'ACH Payment Authorization', 'Electronic Funds Transfer');
+  const isCA = row.country === 'CA';
+  const achTitle = isCA ? 'EFT Payment Authorization' : 'ACH Payment Authorization';
 
-  page.drawText('Vendor ACH Payment Authorization Form', { x: 36, y, font: bold, size: 12, color: BPN_BLUE });
+  let y = pageHeader(ctx, achTitle, 'Electronic Funds Transfer');
+
+  page.drawText(`Vendor ${achTitle} Form`, { x: 36, y, font: bold, size: 12, color: BPN_BLUE });
   y -= 18;
 
   // Authorization terms box
   drawRect(page, 36, y - 90, width - 72, 100, rgb(0.97, 0.98, 1), rgb(0.7, 0.8, 1));
   page.drawText('AUTHORIZATION TERMS', { x: 44, y: y - 10, font: bold, size: 9, color: BPN_BLUE });
+  const achType = isCA ? 'EFT' : 'ACH';
   const terms = [
     '• I authorize Bare Performance Nutrition to deposit payments to my financial institution electronically.',
     '• I understand that BPN will reverse any payments made to my account in error.',
     '• The company/individual will give 30 days advanced written notice of any changes in the depository financial institution.',
     '• I understand BPN will charge a fee for any/all returned items due to failure to notify BPN of updated information.',
-    '• ACH payments are processed once a week. Payment will be scheduled after the required information has been received',
+    `• ${achType} payments are processed once a week. Payment will be scheduled after the required information has been received`,
     '  and internal approvals have been obtained.',
   ];
   let ty = y - 24;
@@ -369,14 +383,21 @@ export async function generateAchPdf(row: SubmissionRow): Promise<Uint8Array> {
   drawField(ctx, 'Name on Account', row.bank_account_name, col2, y, fieldW);
   y -= 30;
 
+  const bankStateLabel = isCA ? 'Province' : 'State';
+  const bankZipLabel = isCA ? 'Postal Code' : 'ZIP';
   drawField(ctx, 'Bank Street Address', row.bank_address_street, col1, y, fieldW);
   drawField(ctx, 'City', row.bank_address_city, col2, y, fieldW * 0.5);
-  drawField(ctx, 'State', stateName(row.bank_address_state), col2 + fieldW * 0.52, y, fieldW * 0.22);
-  drawField(ctx, 'ZIP', row.bank_address_zip, col2 + fieldW * 0.76, y, fieldW * 0.24);
+  drawField(ctx, bankStateLabel, stateName(row.bank_address_state, row.country), col2 + fieldW * 0.52, y, fieldW * 0.22);
+  drawField(ctx, bankZipLabel, row.bank_address_zip, col2 + fieldW * 0.76, y, fieldW * 0.24);
   y -= 30;
 
   drawField(ctx, 'Account Number', `••••••••${row.bank_account_last4}`, col1, y, fieldW);
-  drawField(ctx, 'ABA Routing / SWIFT Number', row.bank_routing_number, col2, y, fieldW);
+  if (isCA) {
+    drawField(ctx, 'Transit Number', row.ca_transit_number ?? '', col2, y, fieldW / 2 - 2);
+    drawField(ctx, 'Institution Number', row.ca_institution_number ?? '', col2 + fieldW / 2 + 2, y, fieldW / 2 - 2);
+  } else {
+    drawField(ctx, 'ABA Routing Number', row.bank_routing_number, col2, y, fieldW);
+  }
   y -= 30;
 
   drawField(ctx, 'Email Address for Payment Notifications', row.payment_notification_email, col1, y, width - 72);
@@ -388,7 +409,7 @@ export async function generateAchPdf(row: SubmissionRow): Promise<Uint8Array> {
   y -= 14;
 
   drawRect(page, 36, y - 70, width - 72, 82, LIGHT_GRAY, rgb(0.8, 0.8, 0.8));
-  page.drawText('By signing below, I authorize the ACH payment terms described above.', {
+  page.drawText(`By signing below, I authorize the ${achType} payment terms described above.`, {
     x: 44, y: y - 10, font: regular, size: 9, color: DARK_GRAY,
   });
   drawLine(page, 44, y - 28, 300, y - 28, DARK_GRAY, 1);
@@ -413,15 +434,17 @@ export async function generateAchPdf(row: SubmissionRow): Promise<Uint8Array> {
 
 // ─── Merged PDF ────────────────────────────────────────────────────────────────
 export async function generateMergedPdf(row: SubmissionRow): Promise<Uint8Array> {
-  const [w9Bytes, vsBytes, achBytes] = await Promise.all([
-    generateW9Pdf(row),
-    generateVendorSetupPdf(row),
-    generateAchPdf(row),
-  ]);
+  const isCA = row.country === 'CA';
 
+  // W-9 is a US-only document; skip it for Canadian vendors
+  const pdfPromises = isCA
+    ? [generateVendorSetupPdf(row), generateAchPdf(row)]
+    : [generateW9Pdf(row), generateVendorSetupPdf(row), generateAchPdf(row)];
+
+  const pdfResults = await Promise.all(pdfPromises);
   const merged = await PDFDocument.create();
 
-  for (const bytes of [w9Bytes, vsBytes, achBytes]) {
+  for (const bytes of pdfResults) {
     const src = await PDFDocument.load(bytes);
     const pages = await merged.copyPages(src, src.getPageIndices());
     pages.forEach(p => merged.addPage(p));

@@ -1,9 +1,14 @@
-import { neon } from '@neondatabase/serverless';
+import fs from 'fs';
+import path from 'path';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DB_PATH = path.join(DATA_DIR, 'submissions.json');
 
 export type SubmissionRow = {
   id: string;
   confirmation_number: string;
   submitted_at: string;
+  country: 'US' | 'CA';
   company_name: string;
   dba: string | null;
   tax_classification: string;
@@ -39,7 +44,9 @@ export type SubmissionRow = {
   bank_address_zip: string;
   bank_account_number_encrypted: string;
   bank_account_last4: string;
-  bank_routing_number: string;
+  bank_routing_number: string;    // US: ABA routing; empty for CA
+  ca_transit_number: string | null;     // CA only
+  ca_institution_number: string | null; // CA only
   payment_notification_email: string;
   signature_name: string;
   signature_title: string;
@@ -51,96 +58,67 @@ export type SubmissionRow = {
   internal_notes: string | null;
 };
 
-const sql = neon(process.env.DATABASE_URL!);
+type Store = { submissions: SubmissionRow[] };
 
-export async function insertSubmission(row: SubmissionRow): Promise<void> {
-  await sql`
-    INSERT INTO submissions (
-      id, confirmation_number, submitted_at, company_name, dba,
-      tax_classification, tax_classification_llc, tax_classification_other,
-      exempt_payee_code, exempt_fatca_code,
-      address_street, address_apt, address_city, address_state, address_zip,
-      tin_type, tin_encrypted, tin_last4,
-      accounting_name, accounting_phone, accounting_email,
-      remit_same_as_company, remit_street, remit_city, remit_state, remit_zip,
-      sales_name, sales_phone, sales_email, special_notes,
-      bank_name, bank_account_name,
-      bank_address_street, bank_address_city, bank_address_state, bank_address_zip,
-      bank_account_number_encrypted, bank_account_last4, bank_routing_number,
-      payment_notification_email,
-      signature_name, signature_title, signature_phone, signature_date,
-      w9_certified, ach_authorized, status, internal_notes
-    ) VALUES (
-      ${row.id}, ${row.confirmation_number}, ${row.submitted_at},
-      ${row.company_name}, ${row.dba},
-      ${row.tax_classification}, ${row.tax_classification_llc}, ${row.tax_classification_other},
-      ${row.exempt_payee_code}, ${row.exempt_fatca_code},
-      ${row.address_street}, ${row.address_apt}, ${row.address_city}, ${row.address_state}, ${row.address_zip},
-      ${row.tin_type}, ${row.tin_encrypted}, ${row.tin_last4},
-      ${row.accounting_name}, ${row.accounting_phone}, ${row.accounting_email},
-      ${row.remit_same_as_company}, ${row.remit_street}, ${row.remit_city}, ${row.remit_state}, ${row.remit_zip},
-      ${row.sales_name}, ${row.sales_phone}, ${row.sales_email}, ${row.special_notes},
-      ${row.bank_name}, ${row.bank_account_name},
-      ${row.bank_address_street}, ${row.bank_address_city}, ${row.bank_address_state}, ${row.bank_address_zip},
-      ${row.bank_account_number_encrypted}, ${row.bank_account_last4}, ${row.bank_routing_number},
-      ${row.payment_notification_email},
-      ${row.signature_name}, ${row.signature_title}, ${row.signature_phone}, ${row.signature_date},
-      ${row.w9_certified}, ${row.ach_authorized}, ${row.status}, ${row.internal_notes}
-    )
-  `;
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-export async function getAllSubmissions(filters?: { status?: string; q?: string }): Promise<SubmissionRow[]> {
-  const { status, q } = filters ?? {};
-
-  if (status && q) {
-    const like = `%${q}%`;
-    return (await sql`
-      SELECT * FROM submissions
-      WHERE status = ${status}
-        AND (company_name ILIKE ${like} OR COALESCE(dba, '') ILIKE ${like} OR confirmation_number ILIKE ${like})
-      ORDER BY submitted_at DESC
-    `) as SubmissionRow[];
+function readStore(): Store {
+  ensureDataDir();
+  if (!fs.existsSync(DB_PATH)) return { submissions: [] };
+  try {
+    return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  } catch {
+    return { submissions: [] };
   }
-  if (status) {
-    return (await sql`
-      SELECT * FROM submissions WHERE status = ${status} ORDER BY submitted_at DESC
-    `) as SubmissionRow[];
+}
+
+function writeStore(store: Store): void {
+  ensureDataDir();
+  fs.writeFileSync(DB_PATH, JSON.stringify(store, null, 2), 'utf8');
+}
+
+export function insertSubmission(row: SubmissionRow): void {
+  const store = readStore();
+  store.submissions.push(row);
+  writeStore(store);
+}
+
+export function getAllSubmissions(filters?: { status?: string; q?: string }): SubmissionRow[] {
+  let rows = readStore().submissions.slice().reverse(); // newest first
+  if (filters?.status) {
+    rows = rows.filter(r => r.status === filters.status);
   }
-  if (q) {
-    const like = `%${q}%`;
-    return (await sql`
-      SELECT * FROM submissions
-      WHERE company_name ILIKE ${like} OR COALESCE(dba, '') ILIKE ${like} OR confirmation_number ILIKE ${like}
-      ORDER BY submitted_at DESC
-    `) as SubmissionRow[];
+  if (filters?.q) {
+    const q = filters.q.toLowerCase();
+    rows = rows.filter(r =>
+      r.company_name.toLowerCase().includes(q) ||
+      (r.dba ?? '').toLowerCase().includes(q) ||
+      r.confirmation_number.toLowerCase().includes(q)
+    );
   }
-  return (await sql`SELECT * FROM submissions ORDER BY submitted_at DESC`) as SubmissionRow[];
+  return rows;
 }
 
-export async function getSubmissionById(id: string): Promise<SubmissionRow | undefined> {
-  const rows = (await sql`SELECT * FROM submissions WHERE id = ${id}`) as SubmissionRow[];
-  return rows[0];
+export function getSubmissionById(id: string): SubmissionRow | undefined {
+  return readStore().submissions.find(s => s.id === id);
 }
 
-export async function updateSubmission(
-  id: string,
-  updates: { status: string; internal_notes: string | null },
-): Promise<boolean> {
-  const result = await sql`
-    UPDATE submissions
-    SET status = ${updates.status}, internal_notes = ${updates.internal_notes}
-    WHERE id = ${id}
-  `;
-  return (result as unknown as { rowCount: number }).rowCount > 0;
+export function updateSubmission(id: string, updates: { status: string; internal_notes: string | null }): boolean {
+  const store = readStore();
+  const idx = store.submissions.findIndex(s => s.id === id);
+  if (idx === -1) return false;
+  store.submissions[idx] = { ...store.submissions[idx], ...updates };
+  writeStore(store);
+  return true;
 }
 
-export async function getStatusCounts(): Promise<Record<string, number>> {
-  const rows = await sql`SELECT status, COUNT(*)::int AS count FROM submissions GROUP BY status`;
-  const counts: Record<string, number> = { all: 0 };
+export function getStatusCounts(): Record<string, number> {
+  const rows = readStore().submissions;
+  const counts: Record<string, number> = { all: rows.length };
   for (const row of rows) {
-    counts[row.status as string] = row.count as number;
-    counts.all += row.count as number;
+    counts[row.status] = (counts[row.status] ?? 0) + 1;
   }
   return counts;
 }

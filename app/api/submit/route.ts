@@ -4,7 +4,6 @@ import { insertSubmission } from '@/lib/db';
 import { encrypt, lastFour } from '@/lib/encryption';
 import { step1Schema, step2Schema, step3Schema, step4Schema } from '@/lib/validation';
 import type { FormData } from '@/lib/validation';
-import { sendVendorSubmissionEmail } from '@/lib/email';
 
 function generateConfirmation(): string {
   const year = new Date().getFullYear();
@@ -28,15 +27,15 @@ export async function POST(req: NextRequest) {
 
     const id = randomUUID();
     const confirmationNumber = generateConfirmation();
-    const submittedAt = new Date().toISOString();
 
-    await insertSubmission({
+    insertSubmission({
       id,
       confirmation_number: confirmationNumber,
-      submitted_at: submittedAt,
+      submitted_at: new Date().toISOString(),
+      country: body.country,
       company_name: body.company_name,
       dba: body.dba || null,
-      tax_classification: body.tax_classification,
+      tax_classification: body.tax_classification || '',
       tax_classification_llc: body.tax_classification_llc || null,
       tax_classification_other: body.tax_classification_other || null,
       exempt_payee_code: body.exempt_payee_code || null,
@@ -69,7 +68,9 @@ export async function POST(req: NextRequest) {
       bank_address_zip: body.bank_address_zip,
       bank_account_number_encrypted: encrypt(body.bank_account_number),
       bank_account_last4: lastFour(body.bank_account_number),
-      bank_routing_number: body.bank_routing_number,
+      bank_routing_number: body.country === 'US' ? body.bank_routing_number : '',
+      ca_transit_number: body.country === 'CA' ? body.ca_transit_number : null,
+      ca_institution_number: body.country === 'CA' ? body.ca_institution_number : null,
       payment_notification_email: body.payment_notification_email,
       signature_name: body.signature_name,
       signature_title: body.signature_title,
@@ -80,11 +81,6 @@ export async function POST(req: NextRequest) {
       status: 'Pending Review',
       internal_notes: null,
     });
-
-    console.log('[submit] Submission saved, firing email for', confirmationNumber);
-    sendVendorSubmissionEmail(body, confirmationNumber, submittedAt).catch((err) =>
-      console.error('[submit] Email send threw:', err)
-    );
 
     return NextResponse.json({ confirmationNumber }, { status: 201 });
   } catch (err) {

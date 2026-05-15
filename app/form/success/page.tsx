@@ -1,5 +1,6 @@
 import { CheckCircle2, Mail, Clock } from 'lucide-react';
 import Link from 'next/link';
+import BpnLogo from '@/components/BpnLogo';
 
 export const metadata = { title: 'Submission Received — BPN Vendor Portal' };
 
@@ -14,7 +15,7 @@ export default function SuccessPage({
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-bpn-950 text-white shadow-lg">
         <div className="mx-auto max-w-4xl px-4 py-4 flex items-center gap-3">
-          <img src="/bpn-logo.png" alt="BPN" className="h-8 w-auto" />
+          <BpnLogo variant="light" className="h-8 w-auto" />
           <div>
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Bare Performance Nutrition</p>
             <p className="text-sm font-semibold leading-tight">Vendor Onboarding Portal</p>

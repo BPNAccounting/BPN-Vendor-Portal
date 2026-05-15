@@ -1,5 +1,6 @@
 import { Lock, ShieldCheck } from 'lucide-react';
 import VendorForm from '@/components/form/VendorForm';
+import BpnLogo from '@/components/BpnLogo';
 
 export const metadata = {
   title: 'Vendor Onboarding — Bare Performance Nutrition',
@@ -11,7 +12,7 @@ export default function FormPage() {
       <header className="bg-bpn-950 text-white shadow-lg">
         <div className="mx-auto max-w-4xl px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/bpn-logo.png" alt="BPN" className="h-8 w-auto" />
+            <BpnLogo variant="light" className="h-8 w-auto" />
             <div>
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Bare Performance Nutrition</p>
               <p className="text-sm font-semibold leading-tight">Vendor Onboarding Portal</p>

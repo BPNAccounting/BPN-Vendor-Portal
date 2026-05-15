@@ -11,7 +11,7 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const row = await getSubmissionById(params.id);
+  const row = getSubmissionById(params.id);
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   let pdfBytes: Uint8Array;
@@ -19,6 +19,12 @@ export async function GET(
 
   switch (params.type) {
     case 'w9':
+      if (row.country === 'CA') {
+        return NextResponse.json(
+          { error: 'W-9 is not applicable for Canadian vendors' },
+          { status: 400 }
+        );
+      }
       pdfBytes = await generateW9Pdf(row);
       filename = `W9-${row.confirmation_number}.pdf`;
       break;
@@ -38,7 +44,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unknown PDF type' }, { status: 400 });
   }
 
-  return new NextResponse(pdfBytes as unknown as Buffer, {
+  return new NextResponse(pdfBytes, {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,

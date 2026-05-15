@@ -1,7 +1,7 @@
 'use client';
 
 import { FormField, Input, Select, TextArea } from './FormField';
-import { US_STATES } from '@/lib/constants';
+import { US_STATES, CA_PROVINCES } from '@/lib/constants';
 import type { FormData } from '@/lib/validation';
 
 type Props = {
@@ -10,7 +10,17 @@ type Props = {
   errors: Partial<Record<keyof FormData, string>>;
 };
 
+function formatPostal(value: string, country: 'US' | 'CA'): string {
+  if (country !== 'CA') return value;
+  const clean = value.replace(/\s/g, '').toUpperCase();
+  if (clean.length > 3) return `${clean.slice(0, 3)} ${clean.slice(3, 6)}`;
+  return clean;
+}
+
 export default function StepTwo({ data, onChange, errors }: Props) {
+  const isCA = data.country === 'CA';
+  const regions = isCA ? CA_PROVINCES : US_STATES;
+
   return (
     <div className="space-y-8">
       {/* Accounting Contact */}
@@ -78,25 +88,30 @@ export default function StepTwo({ data, onChange, errors }: Props) {
                   error={errors.remit_city}
                 />
               </FormField>
-              <FormField label="State" required error={errors.remit_state}>
+              <FormField label={isCA ? 'Province' : 'State'} required error={errors.remit_state}>
                 <Select
                   value={data.remit_state}
                   onChange={e => onChange('remit_state', e.target.value)}
                   error={errors.remit_state}
                 >
                   <option value="">Select…</option>
-                  {US_STATES.map(s => (
+                  {regions.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </Select>
               </FormField>
-              <FormField label="ZIP Code" required error={errors.remit_zip}>
+              <FormField
+                label={isCA ? 'Postal Code' : 'ZIP Code'}
+                required
+                error={errors.remit_zip}
+                hint={isCA ? 'A1A 1A1' : undefined}
+              >
                 <Input
                   value={data.remit_zip}
-                  onChange={e => onChange('remit_zip', e.target.value)}
-                  placeholder="00000"
-                  maxLength={10}
-                  inputMode="numeric"
+                  onChange={e => onChange('remit_zip', formatPostal(e.target.value, data.country))}
+                  placeholder={isCA ? 'A1A 1A1' : '00000'}
+                  maxLength={isCA ? 7 : 10}
+                  inputMode={isCA ? 'text' : 'numeric'}
                   error={errors.remit_zip}
                 />
               </FormField>
