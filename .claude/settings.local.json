@@ -4,7 +4,10 @@
       "Bash(npm install *)",
       "PowerShell(Test-Path \"C:\\\\Program Files\\\\nodejs\\\\npm.cmd\"; Test-Path \"$env:APPDATA\\\\npm\\\\npm.cmd\"; Get-ChildItem \"C:\\\\Program Files\\\\nodejs\\\\\" -ErrorAction SilentlyContinue | Select-Object Name -First 5)",
       "WebFetch(domain:bpnsupps.com)",
-      "WebFetch(domain:www.bareperformancenutrition.com)"
+      "WebFetch(domain:www.bareperformancenutrition.com)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
